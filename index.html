@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instructor Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="text-center my-4">
+            <h1 class="display-4">Instructor Dashboard</h1>
+            <nav class="navbar navbar-expand-lg navbar-light bg-light rounded">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item"><a class="nav-link" href="exam.html">Exams</a></li>
+                    <li class="nav-item"><a class="nav-link" href="students.html">Students</a></li>
+                    <li class="nav-item"><a class="nav-link" href="results.html">Results</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main class="grid-container">
+            <section class="statistic-card">
+                <div class="neumorphic-card text-center">
+                    <h3 class="card-title">Total Exams</h3>
+                    <p class="display-4" id="totalExams">0</p>
+                    <i class="fas fa-calendar-alt fa-3x"></i>
+                </div>
+            </section>
+            <section class="statistic-card">
+                <div class="neumorphic-card text-center">
+                    <h3 class="card-title">Total Students</h3>
+                    <p class="display-4" id="totalStudents">0</p>
+                    <i class="fas fa-user-graduate fa-3x"></i>
+                </div>
+            </section>
+            <section class="statistic-card">
+                <div class="neumorphic-card text-center">
+                    <h3 class="card-title">Average Result</h3>
+                    <p class="display-4" id="averageResult">0%</p>
+                    <i class="fas fa-chart-line fa-3x"></i>
+                </div>
+            </section>
+            <section class="statistic-card">
+                <div class="neumorphic-card text-center">
+                    <h3 class="card-title">Pending Results</h3>
+                    <p class="display-4" id="pendingResults">0</p>
+                    <i class="fas fa-clock fa-3x"></i>
+                </div>
+            </section>
+        </main>
+
+        <h2 class="mt-5">Exam Results Overview</h2>
+        <canvas id="resultsChart" class="my-4" width="400" height="200"></canvas>
+    </div>
+
+    <script src="script.js"></script>
+    <!-- Bootstrap JS, Popper.js, jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <script>
+        const apiBaseURL = 'http://127.0.0.1:5000'; // Your API base URL
+
+        // Function to fetch and update dashboard data
+        async function updateDashboard() {
+            try {
+                const [studentsRes, examsRes, resultsRes] = await Promise.all([
+                    fetch(`${apiBaseURL}/students`),
+                    fetch(`${apiBaseURL}/exams`),
+                    fetch(`${apiBaseURL}/results`)
+                ]);
+
+                const students = await studentsRes.json();
+                const exams = await examsRes.json();
+                const results = await resultsRes.json();
+
+                // Update total counts
+                document.getElementById('totalStudents').innerText = students.length;
+                document.getElementById('totalExams').innerText = exams.length;
+                
+                // Calculate average result
+                const totalScore = results.reduce((acc, result) => acc + result.score, 0);
+                const averageResult = results.length ? (totalScore / results.length).toFixed(2) : 0;
+                document.getElementById('averageResult').innerText = `${averageResult}%`;
+                
+                // Count pending results (assumed to be based on some criteria)
+                const pendingResults = results.filter(result => result.score === null).length; // Adjust condition as needed
+                document.getElementById('pendingResults').innerText = pendingResults;
+
+                // Prepare data for the chart
+                const subjects = exams.map(exam => exam.subject);
+                const scores = results.map(result => result.score);
+                const subjectScores = {};
+
+                // Calculate average scores per subject
+                scores.forEach((score, index) => {
+                    const examId = results[index].exam_id;
+                    const subject = subjects[examId - 1]; // Adjust indexing if needed
+                    if (!subjectScores[subject]) {
+                        subjectScores[subject] = [];
+                    }
+                    subjectScores[subject].push(score);
+                });
+
+                const averageScores = subjects.map(subject => {
+                    const scores = subjectScores[subject] || [];
+                    const avgScore = scores.length ? (scores.reduce((a, b) => a + b) / scores.length).toFixed(2) : 0;
+                    return avgScore;
+                });
+
+                // Update the chart with the new data
+                updateChart(subjects, averageScores);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Function to update chart with new data
+        function updateChart(labels, data) {
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Average Scores (%)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        data: data,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Scores (%)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Subjects'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial dashboard update
+        updateDashboard();
+    </script>
+</body>
+</html>
